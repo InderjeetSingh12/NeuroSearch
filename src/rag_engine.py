@@ -1,47 +1,59 @@
-from typing import Dict, Any
-from langchain.chains import RetrievalQA
-from langchain.prompts import PromptTemplate
-from src.vector_store import VectorStoreManager
+from typing import Dict, Any, List
+from sentence_transformers import CrossEncoder
+from src.vector_store import HybridVectorStore
 from src.llm import LLMInterface
+from langchain_core.documents import Document
 
-class RAGOrchestrator:
+class ResearchRAGEngine:
     """
-    Orchestrates the retrieval-augmented generation process.
-    Connects the LLM, vector store, and prompt templates.
+    RAG Engine with 2-Stage Retrieval (Bi-Encoder + Cross-Encoder Re-ranker).
+    ML Research Note: Cross-Encoders are more computationally expensive but
+    provide far more accurate relevance scoring by considering the query and 
+    document jointly.
     """
-    def __init__(self, vector_store: VectorStoreManager, llm_interface: LLMInterface):
+    def __init__(self, vector_store: HybridVectorStore, llm_interface: LLMInterface, rerank_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"):
         self.vector_store = vector_store
         self.llm = llm_interface.get_llm()
-        self.retriever = self.vector_store.get_retriever()
+        self.reranker = CrossEncoder(rerank_model)
         
-        # Define a prompt template for context-aware Q&A
-        self.prompt_template = """
-        You are a helpful and knowledgeable AI assistant. Use the following pieces of context to answer the user's question.
-        If the answer is not in the context, say that you don't know, but try to be helpful based on general knowledge.
-        
-        Context:
-        {context}
-        
-        Question:
-        {question}
-        
-        Answer:
+    def _rerank_documents(self, query: str, documents: List[Document], top_k: int = 4) -> List[Document]:
         """
-        self.prompt = PromptTemplate(
-            template=self.prompt_template, input_variables=["context", "question"]
-        )
+        Re-ranks a list of candidate documents based on cross-encoder scores.
+        """
+        if not documents:
+            return []
+            
+        pairs = [[query, doc.page_content] for doc in documents]
+        scores = self.reranker.predict(pairs)
         
-        self.qa_chain = RetrievalQA.from_chain_type(
-            llm=self.llm,
-            chain_type="stuff",
-            retriever=self.retriever,
-            return_source_documents=True,
-            chain_type_kwargs={"prompt": self.prompt}
-        )
+        # Sort documents by scores in descending order
+        ranked_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)
+        return [documents[i] for i in ranked_indices[:top_k]]
 
-    def query(self, question: str) -> Dict[str, Any]:
+    def query(self, question: str, alpha: float = 0.5) -> Dict[str, Any]:
         """
-        Executes a RAG query and returns the answer with source documents.
+        Executes a 2-stage RAG pipeline.
+        1. Retrieval: Hybrid Dense + Sparse Search.
+        2. Re-ranking: Cross-Encoder sorting.
         """
-        result = self.qa_chain.invoke({"query": question})
-        return result
+        # 1. Retrieval (Hybrid)
+        candidate_docs = self.vector_store.hybrid_search(question, k=15, alpha=alpha)
+        
+        # 2. Re-ranking (Cross-Encoder)
+        reranked_docs = self._rerank_documents(question, candidate_docs, top_k=4)
+        
+        # 3. Augmentation (Context Construction)
+        context = "\n\n".join([doc.page_content for doc in reranked_docs])
+        prompt = f"Use the following context to answer: {context}\n\nQuestion: {question}\nAnswer:"
+        
+        # 4. Generation
+        response = self.llm.invoke(prompt)
+        
+        return {
+            "result": response,
+            "source_documents": reranked_docs,
+            "retrieval_metrics": {
+                "num_candidates": len(candidate_docs),
+                "num_reranked": len(reranked_docs)
+            }
+        }
