@@ -1,84 +1,62 @@
-# ðŸ§  NeuroSearch: Modular RAG Engine
+# ðŸ§ª NeuroSearch Research: Advanced RAG Engine
 
-![Python](https://img.shields.io/badge/Python-3.10%2B-blue?style=flat&logo=python)
-![RAG](https://img.shields.io/badge/Architecture-RAG-purple?style=flat)
-![Status](https://img.shields.io/badge/Status-Active-green?style=flat)
-![License](https://img.shields.io/badge/License-MIT-yellow?style=flat)
+![Research](https://img.shields.io/badge/Role-ML%20Research%20Scientist-blue?style=for-the-badge)
+![AI](https://img.shields.io/badge/Architecture-Hybrid%20RAG-darkgreen?style=for-the-badge)
+![Models](https://img.shields.io/badge/Models-Bi--Encoder%20%2B%20Cross--Encoder-orange?style=for-the-badge)
 
-**NeuroSearch** is a production-ready, modular Retrieval-Augmented Generation (RAG) engine designed for local-first semantic search and question answering. It processes your private documents (PDF, Markdown, Text) and allows you to chat with them using local LLMs (via Ollama) or cloud providers.
+**NeuroSearch Research** is a high-performance RAG (Retrieval-Augmented Generation) engine built with a research-first mindset. It implements a 2-stage retrieval pipeline to maximize retrieval precision and semantic relevance.
 
-## ðŸš€ Key Features
+## ðŸ”¬ Advanced Research Features
 
-*   **Modular Architecture:** Clean separation of concerns (Ingestion, Embedding, Vector Store, LLM).
-*   **Local-First:** Designed to run with Ollama (Llama 3, Mistral) for privacy-preserving AI.
-*   **Pluggable Vector Stores:** Supports ChromaDB out-of-the-box, extensible to FAISS/Pinecone.
-*   **Type-Safe:** Fully typed Python code with Pydantic validation.
-*   **CLI Interface:** robust command-line tools for ingestion and querying.
+### 1. Hybrid Sparse-Dense Retrieval
+Combines **ChromaDB Dense Embeddings** (`all-MiniLM-L6-v2`) with **BM25 Sparse Retrieval**. This hybrid approach (Î±-weighted) ensures that the engine captures both semantic meaning and exact keyword matches, significantly reducing retrieval failure.
 
-## ðŸ— Architecture
+### 2. 2-Stage Retrieval Pipeline
+*   **Stage 1 (Candidates):** Hybrid search retrieves top-15 candidate documents.
+*   **Stage 2 (Re-ranking):** Uses a **Cross-Encoder** (`ms-marco-MiniLM-L-6-v2`) to re-score candidates based on query-document joint interaction, keeping only the top-4 for generation.
 
-```mermaid
-graph TD
-    A[Documents] -->|Ingest| B(Text Splitter)
-    B -->|Chunks| C(Embedding Model)
-    C -->|Vectors| D[(ChromaDB Vector Store)]
-    E[User Query] -->|Embed| C
-    D -->|Retrieve Context| F[RAG Orchestrator]
-    E --> F
-    F -->|Context + Query| G[LLM (Ollama)]
-    G -->|Answer| H[User]
-```
+### 3. Modularity & Scalability
+Designed for experimental reproducibility, with decoupled components for ingestion, vector space management, and LLM inference.
 
-## ðŸ›  Installation
+## ðŸ“ Mathematical Overview
 
-1.  **Clone the repository:**
+The combined retrieval score $S$ is calculated as:
+$$S = \alpha \cdot S_{dense} + (1 - \alpha) \cdot S_{sparse}$$
+where $\alpha$ is the hybrid weighting factor, $S_{dense}$ is the cosine similarity score, and $S_{sparse}$ is the normalized BM25 score.
+
+## ðŸ›  Setup
+
+1.  **Clone & Install:**
     ```bash
     git clone https://github.com/nft94/NeuroSearch.git
-    cd NeuroSearch
-    ```
-
-2.  **Install dependencies:**
-    ```bash
     pip install -r requirements.txt
     ```
 
-3.  **Set up Ollama:**
-    Ensure [Ollama](https://ollama.com/) is running locally:
+2.  **Ollama Engine:**
+    Ensure Ollama is running with Llama 3 or similar:
     ```bash
-    ollama serve
-    ollama pull llama3
+    ollama run llama3
     ```
 
-## ðŸ’» Usage
+## ðŸ’» CLI Usage
 
-### 1. Ingest Documents
-Process your local documents into the vector store:
-
+### Ingestion (Hybrid Indexing)
 ```bash
-python main.py ingest --dir ./data/docs
+python main.py ingest --dir ./my_research_docs
 ```
 
-### 2. Chat with your Data
-Start an interactive chat session:
-
+### Research Chat (with Re-ranking)
 ```bash
-python main.py chat
+python main.py chat --alpha 0.7
 ```
+*`--alpha 0.7` favors semantic search; set lower for keyword-heavy queries.*
 
-## ðŸ“‚ Project Structure
+## ðŸ“‚ Project Roadmap
+- [x] Hybrid Dense-Sparse Search
+- [x] Cross-Encoder Re-ranking
+- [ ] Retrieval Evaluation Module (MRR, NDCG)
+- [ ] Contextual Compression Transformers
+- [ ] Multi-Query Expansion
 
-```
-NeuroSearch/
-â”œâ”€â”€ src/
-â”‚   â”œâ”€â”€ __init__.py
-â”‚   â”œâ”€â”€ ingest.py       # Document loading & splitting
-â”‚   â”œâ”€â”€ vector_store.py # ChromaDB wrapper
-â”‚   â”œâ”€â”€ llm.py          # Ollama interface
-â”‚   â””â”€â”€ rag_engine.py   # Main RAG logic
-â”œâ”€â”€ main.py             # CLI Entrypoint
-â”œâ”€â”€ requirements.txt    # Dependencies
-â””â”€â”€ README.md           # Documentation
-```
-
-## ðŸ¤ Contributing
-Contributions are welcome! Please feel free to submit a Pull Request.
+---
+*Created with focus on robust ML pipelines and modular architecture.*
